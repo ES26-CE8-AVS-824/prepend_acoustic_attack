@@ -4,6 +4,7 @@ import os
 import struct
 import sys
 from argparse import ArgumentParser
+from tqdm import tqdm
 
 import datasets as ds
 import numpy as np
@@ -107,7 +108,7 @@ if __name__ == '__main__':
     model.eval()
     with torch.no_grad():
         samples_processed = 0
-        for audio_batch, paths in dataloader:
+        for audio_batch, paths in tqdm(dataloader):
             if args.limit is not None and samples_processed >= args.limit:
                 break
 
