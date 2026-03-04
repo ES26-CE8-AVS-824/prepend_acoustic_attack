@@ -4,4 +4,4 @@ srun singularity exec --nv --writable-tmpfs \
      /ceph/container/python/python_3.9.sif \
      /bin/bash -c "export TMPDIR=/scratch/singularity/tmp && \
                    source /scratch/prepend_attack_venv/bin/activate && \
-                   nvidia-smi"
+                   pip install -r requirements_marko.txt --no-cache-dir"
