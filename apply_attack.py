@@ -84,6 +84,7 @@ if __name__ == '__main__':
 
     LANGUAGE = 'default' if args.whisper_model.endswith('.en') else 'en_us'
     SPLIT = 'test'
+    split_str = f"{SPLIT}[:{args.limit}]" if args.limit is not None else SPLIT
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
     options = dict(language="en", task="transcribe")
 
@@ -92,14 +93,9 @@ if __name__ == '__main__':
     model = whisper.load_model(args.whisper_model).to(DEVICE)
 
     dataset = GPUReadyAudioDataset(
-        ds.load_dataset(args.dataset, LANGUAGE, split=SPLIT, trust_remote_code=True))
+        ds.load_dataset(args.dataset, LANGUAGE, split=split_str, trust_remote_code=True))
     dataloader = DataLoader(dataset, batch_size=64, num_workers=4, pin_memory=True,
                             prefetch_factor=4, collate_fn=collate_audio_pinned)
-
-    if args.limit is not None:
-        # Calculate number of batches needed
-        num_batches = (args.limit + dataloader.batch_size - 1) // dataloader.batch_size
-        dataloader = list(dataloader)[:num_batches]
 
     print("Attack loaded. \"Attacking\"", args.limit if args.limit else len(dataloader), "samples...", file=sys.stderr)
 
@@ -109,15 +105,6 @@ if __name__ == '__main__':
     with torch.no_grad():
         samples_processed = 0
         for audio_batch, paths in tqdm(dataloader):
-            if args.limit is not None and samples_processed >= args.limit:
-                break
-
-            # Only process up to the limit
-            if args.limit is not None:
-                remaining = args.limit - samples_processed
-                if remaining < len(audio_batch):
-                    audio_batch = audio_batch[:remaining]
-                    paths = paths[:remaining]
 
             samples_processed += len(audio_batch)
 
