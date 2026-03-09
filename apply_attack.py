@@ -13,7 +13,7 @@ import torch
 import whisper
 from torch.utils.data import DataLoader
 
-from load_multi_audio_files import GPUReadyAudioDataset, collate_audio_pinned
+from load_multi_audio_files import GPUReadyAudioDataset, collate_audio_pinned, VoiceBankAudioDataset
 
 import warnings
 
@@ -82,18 +82,23 @@ if __name__ == '__main__':
     # -------------------------
     print("Loading attack...", file=sys.stderr)
 
-    LANGUAGE = 'default' if args.whisper_model.endswith('.en') else 'en_us'
+    LANGUAGE = 'en_us' if not args.whisper_model.endswith('.en') else 'default'
     SPLIT = 'test'
     split_str = f"{SPLIT}[:{args.limit}]" if args.limit is not None else SPLIT
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-    options = dict(language="en", task="transcribe")
+    options = whisper.DecodingOptions(language="en", task="transcribe")
 
     muted_audio = np.load(f'audio_attack_segments/{args.whisper_model}.np.npy')
     audio_attack_segment = torch.from_numpy(muted_audio).to(DEVICE)
     model = whisper.load_model(args.whisper_model).to(DEVICE)
 
-    dataset = GPUReadyAudioDataset(
-        ds.load_dataset(args.dataset, LANGUAGE, split=split_str, trust_remote_code=True))
+    hf_dataset = ds.load_dataset(args.dataset, LANGUAGE, split=split_str, trust_remote_code=True)
+
+    if args.dataset.endswith('VoiceBank-DEMAND-16k'):
+        dataset = VoiceBankAudioDataset(hf_dataset, source='clean')
+    else:  # google/fleurs
+        dataset = GPUReadyAudioDataset(hf_dataset)
+
     dataloader = DataLoader(dataset, batch_size=64, num_workers=4, pin_memory=True,
                             prefetch_factor=4, collate_fn=collate_audio_pinned)
 
@@ -113,7 +118,6 @@ if __name__ == '__main__':
             mels = [whisper.log_mel_spectrogram(audio) for audio in audio_batch]  # [80, 3000] each
             mels = torch.stack(mels)  # [B, 80, 3000]
             # Batch decoder/encoder (90% time, fully parallel)
-            options = whisper.DecodingOptions()
             results = model.decode(mels, options)
 
             for path, res in zip(paths, results):

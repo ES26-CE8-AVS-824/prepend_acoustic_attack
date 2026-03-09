@@ -39,6 +39,36 @@ class GPUReadyAudioDataset(Dataset):
         return {'waveform': waveform, 'path': item['path']}
 
 
+class VoiceBankAudioDataset(Dataset):
+    """Dataset for JacobLinCool/VoiceBank-DEMAND-16k (or similar).
+    Items have keys: 'id', 'clean', 'noisy'
+    where 'clean'/'noisy' are dicts with 'array' (np.ndarray) and 'sampling_rate'.
+    """
+    TARGET_SR = 16_000
+
+    def __init__(self, hf_dataset, source='clean'):
+        self.dataset = hf_dataset
+        self.source = source  # 'clean' or 'noisy'
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        audio_dict = item[self.source]
+        array = audio_dict['array']  # np.ndarray [T]
+        sample_rate = audio_dict.get('sampling_rate', self.TARGET_SR)
+        waveform = torch.from_numpy(array).float()  # [T]
+
+        # Resample to 16 kHz if needed
+        if sample_rate != self.TARGET_SR:
+            resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.TARGET_SR)
+            waveform = resampler(waveform)
+
+        waveform = pad_or_trim(waveform, length=480_000)  # Whisper-compatible length (30s @ 16kHz)
+        return {'waveform': waveform, 'path': item['id']}
+
+
 def collate_audio_pinned(batch):
     waveforms = torch.stack([item['waveform'] for item in batch])  # [B, 480k]
     paths = [item['path'] for item in batch]
