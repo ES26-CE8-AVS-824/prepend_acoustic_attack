@@ -18,6 +18,7 @@ from load_multi_audio_files import pad_or_trim
 # ----------------------------
 class AudioFolderDataset(Dataset):
     def __init__(self, dir_path):
+        dir_path = os.path.abspath(dir_path)
         self.files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)
                       if f.lower().endswith(('.wav', '.mp3', '.flac', '.m4a', '.ogg'))]
 
