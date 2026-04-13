@@ -24,7 +24,8 @@ def make_save_path(path, directory, ext=".wav"):
     filename = os.path.basename(path)
     if not os.path.splitext(filename)[1]:
         filename += ext
-    return os.path.join(os.path.abspath(directory), filename)
+    full_path = os.path.abspath(os.path.join(directory, filename))
+    return full_path, filename
 
 
 if __name__ == '__main__':
@@ -96,16 +97,16 @@ if __name__ == '__main__':
             results_muted = model.decode(mels_muted, options)
 
             buffer = io.BytesIO()
-            for path, audio_og, res_og, audio_muted, res_muted in zip(paths, audio_batch, results_og, audio_muted,
+            for path, audio_og, res_og, audio_muted, res_muted in zip(paths, audio_batch, results_og, audios_muted,
                                                                       results_muted):
-                og_save_path = make_save_path(path, args.original_save_dir)
-                adv_save_path = make_save_path(path, args.adv_save_dir)
-                transcriptions_original[og_save_path] = res_og.text
-                transcriptions_muted[save_path] = res_muted.text
-                sf.write(og_save_path, audio.cpu().numpy(), args.target_frequency, format="WAV")
-                sf.write(adv_save_path, audio_muted.cpu().numpy(), args.target_frequency, format="WAV")
+                og_save_path_full, og_save_path_filename = make_save_path(path, args.original_save_dir)
+                adv_save_path_full, adv_save_path_filename = make_save_path(path, args.adv_save_dir)
+                transcriptions_original[og_save_path_filename] = res_og.text
+                transcriptions_muted[adv_save_path_filename] = res_muted.text
+                sf.write(og_save_path_full, audio_og.cpu().numpy(), args.target_frequency, format="WAV")
+                sf.write(adv_save_path_full, audio_muted.cpu().numpy(), args.target_frequency, format="WAV")
 
-            del audio_batch, mels, results, audios_muted, mels_muted, results_muted
+            del audio_batch, mels, results_og, audios_muted, mels_muted, results_muted
             torch.cuda.empty_cache()
     # print(text)
     with open(os.path.join(args.original_save_dir, f"transcriptions_{args.whisper_model}.json"), "w") as f:
