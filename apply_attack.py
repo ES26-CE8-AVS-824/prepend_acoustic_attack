@@ -1,21 +1,20 @@
 import io
 import json
 import os
-import struct
 import sys
+import warnings
 from argparse import ArgumentParser
-from tqdm import tqdm
 
 import datasets as ds
-import numpy as np
 import soundfile as sf
-import torch
 import whisper
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from load_multi_audio_files import GPUReadyAudioDataset, collate_audio_pinned, VoiceBankAudioDataset
-
-import warnings
+import numpy as np
+import torch
+from load_multi_audio_files import GPUReadyAudioDataset, collate_audio_pinned, VoiceBankAudioDataset, BadayvedatVCTKAudioDataset
+from load_multi_audio_files_alex import VCTKAudioDataset
 
 warnings.filterwarnings("ignore", category=UserWarning, module="torchaudio")
 
@@ -52,20 +51,37 @@ if __name__ == '__main__':
     # -------------------------
     print("Loading attack...", file=sys.stderr)
 
-    LANGUAGE = 'en_us' if not args.whisper_model.endswith('.en') else 'default'
-    SPLIT = 'test'
+    SPLIT = "test"
     split_str = f"{SPLIT}[:{args.limit}]" if args.limit is not None else SPLIT
-    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     options = whisper.DecodingOptions(language="en", task="transcribe")
 
-    muted_audio = np.load(f'audio_attack_segments/{args.whisper_model}.np.npy')
+    muted_audio = np.load(f"audio_attack_segments/{args.whisper_model}.np.npy")
     audio_attack_segment = torch.from_numpy(muted_audio).to(DEVICE)
     model = whisper.load_model(args.whisper_model).to(DEVICE)
 
-    hf_dataset = ds.load_dataset(args.dataset, LANGUAGE, split=split_str, trust_remote_code=True)
+    # Config name is dataset-specific
+    if "fleurs" in args.dataset:
+        config = "en_us" if not args.whisper_model.endswith(".en") else "default"
+    elif "badayvedat/VCTK" in args.dataset:
+        config = "default"
+    else:
+        config = None  # VoiceBank-DEMAND-16k needs no config
 
-    if args.dataset.endswith('VoiceBank-DEMAND-16k'):
-        dataset = VoiceBankAudioDataset(hf_dataset, source='clean')
+    # Load dataset
+    load_kwargs = dict(split=split_str, trust_remote_code=True)
+    if config:
+        hf_dataset = ds.load_dataset(args.dataset, config, **load_kwargs)
+    else:
+        hf_dataset = ds.load_dataset(args.dataset, **load_kwargs)
+
+    # Create dataloader from dataset
+    if args.dataset.endswith("VoiceBank-DEMAND-16k"):
+        dataset = VoiceBankAudioDataset(hf_dataset, source="clean")
+    elif "badayvedat/VCTK" in args.dataset:
+        dataset = BadayvedatVCTKAudioDataset(hf_dataset)
+    elif "vctk" in args.dataset.lower():
+        dataset = VCTKAudioDataset(hf_dataset)
     else:  # google/fleurs
         dataset = GPUReadyAudioDataset(hf_dataset)
 

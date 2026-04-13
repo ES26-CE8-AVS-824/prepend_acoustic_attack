@@ -72,8 +72,70 @@ class VoiceBankAudioDataset(Dataset):
 def collate_audio_pinned(batch):
     waveforms = torch.stack([item['waveform'] for item in batch])  # [B, 480k]
     paths = [item['path'] for item in batch]
-    return waveforms, paths
+    texts = [item.get("text", "") for item in batch]  # empty string for datasets without transcripts
+    return waveforms, paths, texts
 
+class BadayvedatVCTKAudioDataset(Dataset):
+    """Dataset for badayvedat/VCTK (WebDataset / tar format).
+
+    Fields per item:
+        __key__    : str  — zero-padded sample index, used as the path/ID
+        flac       : dict — {'array': np.ndarray, 'sampling_rate': int}  (48 kHz)
+        txt        : str  — ground-truth transcript
+        speaker_id : bytes | str  — e.g. b'p294' or 'p294'
+        accent/age/gender/region : bytes | str (not used for audio, decoded for completeness)
+    """
+    TARGET_SR = 16_000
+
+    def __init__(self, hf_dataset):
+        self.dataset = hf_dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    @staticmethod
+    def _decode(value) -> str:
+        """Bytes fields in WebDataset tars come back as bytes; decode safely."""
+        if isinstance(value, (bytes, bytearray)):
+            return value.decode("utf-8", errors="replace").strip()
+        return str(value) if value is not None else ""
+
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+
+        # ── Audio ──────────────────────────────────────────────────────────────
+        audio_dict = item["flac"]          # HF Audio feature: {'array', 'sampling_rate'}
+        array      = audio_dict["array"]   # np.ndarray, float32
+        sample_rate = audio_dict.get("sampling_rate", self.TARGET_SR)
+
+        waveform = torch.from_numpy(np.asarray(array)).float()
+
+        # Mono-ify if needed (should already be mono, but be safe)
+        if waveform.ndim > 1:
+            waveform = waveform.mean(dim=0) if waveform.shape[0] > 1 else waveform.squeeze(0)
+
+        if sample_rate != self.TARGET_SR:
+            resampler = torchaudio.transforms.Resample(
+                orig_freq=sample_rate,
+                new_freq=self.TARGET_SR,
+            )
+            waveform = resampler(waveform)
+
+        waveform = pad_or_trim(waveform, length=480_000)
+
+        # ── Identifiers ────────────────────────────────────────────────────────
+        # __key__ is a zero-padded integer string ("0000000"). We compose a
+        # human-readable path from speaker_id + key so filenames are meaningful.
+        key        = item.get("__key__", str(idx))
+        speaker_id = self._decode(item.get("speaker_id", b"spk"))
+        path       = f"{speaker_id}_{key}"   # e.g. "p294_0000000"
+
+        return {
+            "waveform":   waveform,
+            "path":       path,
+            "text":       item.get("txt", ""),
+            "speaker_id": speaker_id,
+        }
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", message=".*non-tuple sequence.*")
@@ -105,7 +167,7 @@ if __name__ == "__main__":
     text = {}
     model.eval()
     with torch.no_grad():
-        for audio_batch, paths in dataloader:
+        for audio_batch, paths, _ in dataloader:
             audio_batch = audio_batch.to(DEVICE, non_blocking=True)  # [B, 480k] pinned
 
             mels = [whisper.log_mel_spectrogram(audio) for audio in audio_batch]  # [80, 3000] each
