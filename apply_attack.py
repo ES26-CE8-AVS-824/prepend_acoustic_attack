@@ -31,6 +31,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--dataset", "-d", type=str, required=True, help="Dataset on HuggingFace")
     parser.add_argument("--noisy", action="store_true", help="Whether to use noisy audio from VoiceBank+DEMAND")
+    parser.add_argument("--split", type=str, default="test", help="HF split to use")
     parser.add_argument("--whisper-model", "-w", type=str, default="base",
                         help="Whisper model name (tiny/base/small/medium/large[.en])")
     parser.add_argument("--sampling-frequency", "-f", type=int, default=16000, help="Sampling frequency for processing")
@@ -57,7 +58,7 @@ if __name__ == '__main__':
     # -------------------------
     print("Loading attack...", file=sys.stderr)
 
-    SPLIT = "test"
+    SPLIT = args.split if args.split else "test"
     split_str = f"{SPLIT}[:{args.limit}]" if args.limit is not None else SPLIT
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     options = whisper.DecodingOptions(language="en", task="transcribe")
