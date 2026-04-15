@@ -14,6 +14,7 @@ from whisper.audio import (
     pad_or_trim,
 )
 from src.tools.tools import eval_neg_seq_len
+from src.tools.tools import load_audio_tensor
 from .softprompt_model_wrapper import SoftPromptModelWrapper
 
 
@@ -33,6 +34,7 @@ class MelBaseAttacker():
         '''
             Get sequence of mel-vectors
         '''
+        audio = load_audio_tensor(audio)
         # 30s of silence added to audio and then calculate mel vectors
         mel = log_mel_spectrogram(audio, self.whisper_model.model.dims.n_mels, padding=N_SAMPLES)
 

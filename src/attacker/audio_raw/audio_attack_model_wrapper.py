@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from whisper.audio import log_mel_spectrogram, pad_or_trim, N_SAMPLES, N_FRAMES, load_audio
+from whisper.audio import log_mel_spectrogram, pad_or_trim, N_SAMPLES, N_FRAMES
+from src.tools.tools import load_audio_tensor, load_audio_waveform
 
 class AudioAttackModelWrapper(nn.Module):
     '''
@@ -94,10 +95,10 @@ class AudioAttackModelWrapper(nn.Module):
         '''
         if do_attack:
             # prepend attack
-            if isinstance(audio, str):
-                audio = load_audio(audio)
-            audio = torch.from_numpy(audio).to(self.device)
+            audio = load_audio_tensor(audio, device=self.device)
             audio = torch.cat((self.audio_attack_segment, audio), dim=0)
+        elif not isinstance(audio, str):
+            audio = load_audio_waveform(audio)
 
         return whisper_model.predict(audio, without_timestamps=without_timestamps)
 

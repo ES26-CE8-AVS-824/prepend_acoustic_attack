@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
-from whisper.audio import load_audio
-import torchaudio
-from whisper.audio import log_mel_spectrogram, pad_or_trim, N_SAMPLES, N_FRAMES, load_audio
+from whisper.audio import log_mel_spectrogram, pad_or_trim, N_SAMPLES, N_FRAMES
+from src.tools.tools import load_audio_tensor
 
 
 class AudioAttackCanaryModelWrapper(nn.Module):
@@ -120,18 +119,8 @@ class AudioAttackCanaryModelWrapper(nn.Module):
         '''
         if do_attack:
             # prepend attack
-            if isinstance(audio, str):
-                audio = load_audio(audio)
-            audio = torch.from_numpy(audio).to(self.device)
+            audio = load_audio_tensor(audio, device=self.device)
             audio = torch.cat((self.audio_attack_segment, audio), dim=0)
-
-            # Ensure audio tensor is in the correct shape [channels, samples]
-            if audio.dim() == 1:
-                audio = audio.unsqueeze(0)  # Add a channel dimension for mono audio
-            sample_rate = 16000
-            torchaudio.save('experiments/temp_audio.wav', audio.cpu(), sample_rate)
-
-            return canary_model.predict('experiments/temp_audio.wav')
         return canary_model.predict(audio)
 
 

@@ -1,0 +1,1 @@
+python train_attack.py --model_name whisper-base --data_name vctk --attack_method audio-raw --max_epochs 40 --clip_val 0.02 --attack_size 10240 --save_freq 5
