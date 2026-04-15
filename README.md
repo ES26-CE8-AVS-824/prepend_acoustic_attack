@@ -57,7 +57,7 @@ The following arguments specify the attack configuration:
 - `attack_method`: What form of acoustic attack to learn. For this paper, we always use `audio-raw`.
 - `clip_val` : The maximum amplitude (for imperceptibility) of the attack audio segment. Set to `0.02` in the paper.
 - `attack_size` : The number of audio frames in the adversarial audio segment. Standard setting is `10,240`, which is equivalent to 0.64 seconds of adversarial audio, for audio sampled at 16kHz.
-- `data_name` : The dataset on which the universal attack is to be trained / evaluated. Note that training is on the validation split of the dataset. A list of datasets can also be passed here for certain functionalities at test time.
+- `data_name` : The dataset on which the universal attack is to be trained / evaluated. For the original local datasets, training is on the validation split of the dataset. `vctk` is also supported through Hugging Face `CSTR-Edinburgh/vctk`, which only exposes an upstream `train` split, so the repository derives a deterministic speaker-disjoint test split from that upstream train split. A list of datasets can also be passed here for certain functionalities at test time.
 - `task` : This can either be `transcribe` or `translate`. This specifies the task that the Whisper model is required to do. Note that `translate` is only possible for the multi-lingual models.
 - `language`: The source audio language. By default is `en`.
 
@@ -72,6 +72,10 @@ The following arguments specify the attack configuration:
 An example command for learning an attack is given below.
 
 `python train_attack.py --model_name whisper-base-multi --data_name librispeech --attack_method audio-raw --max_epochs 40 --clip_val 0.02 --attack_size 10240 --save_freq 10`
+
+To train on VCTK, use the Hugging Face-backed dataset loader.
+
+`python train_attack.py --model_name whisper-base-multi --data_name vctk --attack_method audio-raw --max_epochs 40 --clip_val 0.02 --attack_size 10240 --save_freq 10`
 
 ## Evaluating a universal prepend acoustic attack
 
@@ -89,6 +93,10 @@ During evaluation the following extra arguments may be of use:
 An example command for evaluation is given below:
 
 `python eval_attack.py --model_name whisper-medium-multi --data_name librispeech --attack_method audio-raw --clip_val 0.02 --attack_size 10240 --attack_epoch 160 --not_none`
+
+For VCTK evaluation, the repository uses a deterministic speaker-disjoint test split derived from the Hugging Face `train` split.
+
+`python eval_attack.py --model_name whisper-medium-multi --data_name vctk --attack_method audio-raw --clip_val 0.02 --attack_size 10240 --attack_epoch 40 --not_none`
 
 
 ### Transfer attack evaluation

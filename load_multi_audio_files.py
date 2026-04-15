@@ -76,14 +76,10 @@ def collate_audio_pinned(batch):
     return waveforms, paths, texts
 
 class BadayvedatVCTKAudioDataset(Dataset):
-    """Dataset for badayvedat/VCTK (WebDataset / tar format).
+    """Dataset wrapper for Hugging Face VCTK variants.
 
-    Fields per item:
-        __key__    : str  — zero-padded sample index, used as the path/ID
-        flac       : dict — {'array': np.ndarray, 'sampling_rate': int}  (48 kHz)
-        txt        : str  — ground-truth transcript
-        speaker_id : bytes | str  — e.g. b'p294' or 'p294'
-        accent/age/gender/region : bytes | str (not used for audio, decoded for completeness)
+    Supports both the legacy WebDataset-backed schema and the current
+    CSTR-Edinburgh/vctk schema.
     """
     TARGET_SR = 16_000
 
@@ -104,7 +100,7 @@ class BadayvedatVCTKAudioDataset(Dataset):
         item = self.dataset[idx]
 
         # ── Audio ──────────────────────────────────────────────────────────────
-        audio_dict = item["flac"]          # HF Audio feature: {'array', 'sampling_rate'}
+        audio_dict = item.get("audio") or item["flac"]
         array      = audio_dict["array"]   # np.ndarray, float32
         sample_rate = audio_dict.get("sampling_rate", self.TARGET_SR)
 
@@ -124,16 +120,14 @@ class BadayvedatVCTKAudioDataset(Dataset):
         waveform = pad_or_trim(waveform, length=480_000)
 
         # ── Identifiers ────────────────────────────────────────────────────────
-        # __key__ is a zero-padded integer string ("0000000"). We compose a
-        # human-readable path from speaker_id + key so filenames are meaningful.
-        key        = item.get("__key__", str(idx))
+        key        = item.get("text_id") or item.get("__key__", str(idx))
         speaker_id = self._decode(item.get("speaker_id", b"spk"))
         path       = f"{speaker_id}_{key}"   # e.g. "p294_0000000"
 
         return {
             "waveform":   waveform,
             "path":       path,
-            "text":       item.get("txt", ""),
+            "text":       item.get("text") or item.get("txt", ""),
             "speaker_id": speaker_id,
         }
 
@@ -143,7 +137,7 @@ if __name__ == "__main__":
     random.seed(100)
 
     # Huggingface ASR dataset to be tested
-    DATASET = 'google/fleurs'
+    DATASET = 'vctk'
     LANGUAGE = 'en_us'
     SPLIT = 'test'
     # Whisper model name, can be one of the following: tiny/tiny.en/base/base.en/small/small.en/medium/medium.en

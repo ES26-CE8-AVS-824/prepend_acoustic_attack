@@ -1,3 +1,10 @@
+import io
+import os
+import tempfile
+
+import numpy as np
+import soundfile as sf
+import torchaudio
 from whisper.normalizers import EnglishTextNormalizer
 # import editdistance
 import jiwer
@@ -10,6 +17,7 @@ import nltk
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import matplotlib.pyplot as plt
 from comet import download_model, load_from_checkpoint
+from whisper.audio import SAMPLE_RATE, load_audio
 
 
 from langdetect import detect, DetectorFactory, detect_langs
@@ -27,6 +35,68 @@ def get_default_device(gpu_id=0):
     else:
         print("No CUDA found")
         return torch.device('cpu')
+
+
+def _resample_audio_array(waveform, sample_rate, target_sample_rate=SAMPLE_RATE):
+    if sample_rate == target_sample_rate:
+        return waveform.astype(np.float32)
+
+    waveform_tensor = torch.from_numpy(waveform.astype(np.float32))
+    waveform_tensor = torchaudio.functional.resample(
+        waveform_tensor,
+        sample_rate,
+        target_sample_rate,
+    )
+    return waveform_tensor.cpu().numpy().astype(np.float32)
+
+
+def load_audio_waveform(audio, target_sample_rate=SAMPLE_RATE):
+    if isinstance(audio, str):
+        return load_audio(audio)
+
+    if isinstance(audio, dict):
+        if audio.get("path"):
+            return load_audio(audio["path"])
+        if audio.get("bytes") is not None:
+            waveform, sample_rate = sf.read(io.BytesIO(audio["bytes"]), dtype="float32")
+        elif audio.get("array") is not None:
+            waveform = np.asarray(audio["array"], dtype=np.float32)
+            sample_rate = audio.get("sampling_rate", target_sample_rate)
+        else:
+            raise ValueError("Unsupported audio dictionary format")
+    elif isinstance(audio, torch.Tensor):
+        waveform = audio.detach().cpu().float().numpy()
+        sample_rate = target_sample_rate
+    else:
+        waveform = np.asarray(audio, dtype=np.float32)
+        sample_rate = target_sample_rate
+
+    if waveform.ndim > 1:
+        if waveform.shape[0] <= 8:
+            waveform = waveform.mean(axis=0)
+        else:
+            waveform = waveform.mean(axis=-1)
+
+    waveform = np.asarray(waveform, dtype=np.float32).reshape(-1)
+    return _resample_audio_array(waveform, sample_rate, target_sample_rate)
+
+
+def load_audio_tensor(audio, target_sample_rate=SAMPLE_RATE, device=None):
+    waveform = torch.from_numpy(load_audio_waveform(audio, target_sample_rate=target_sample_rate))
+    if device is not None:
+        waveform = waveform.to(device)
+    return waveform
+
+
+def materialize_audio_path(audio, target_sample_rate=SAMPLE_RATE):
+    if isinstance(audio, str):
+        return audio, False
+
+    waveform = load_audio_waveform(audio, target_sample_rate=target_sample_rate)
+    fd, audio_path = tempfile.mkstemp(prefix="prepend_attack_", suffix=".wav")
+    os.close(fd)
+    sf.write(audio_path, waveform, target_sample_rate, format="WAV")
+    return audio_path, True
 
 def eval_wer(hyps, refs, get_details=False):
     # assuming the texts are already aligned and there is no ID in the texts

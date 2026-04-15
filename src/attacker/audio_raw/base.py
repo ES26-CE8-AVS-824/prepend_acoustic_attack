@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from src.tools.tools import eval_neg_seq_len, eval_frac_0_samples, eval_wer, eval_average_fraction_of_languages, eval_bleu, eval_bleu_dist, eval_comet, eval_comet_dist, eval_english_probability, eval_english_probability_dist, eval_bleu_english_prob_recall, eval_comet_english_prob_recall
 from .audio_attack_model_wrapper import AudioAttackModelWrapper
-from .audio_attack_canary_model_wrapper import AudioAttackCanaryModelWrapper
+# from .audio_attack_canary_model_wrapper import AudioAttackCanaryModelWrapper
 
 class AudioBaseAttacker():
     '''
@@ -20,8 +20,8 @@ class AudioBaseAttacker():
         # model wrapper with audio attack segment prepending ability
         if 'whisper' in model.model_name:
             self.audio_attack_model = AudioAttackModelWrapper(self.whisper_model.tokenizer, attack_size=attack_args.attack_size, device=device, attack_init=attack_init).to(device)
-        elif 'canary' in model.model_name:
-            self.audio_attack_model = AudioAttackCanaryModelWrapper(self.whisper_model.tokenizer, attack_size=attack_args.attack_size, device=device, attack_init=attack_init).to(device)
+        # elif 'canary' in model.model_name:
+        #     self.audio_attack_model = AudioAttackCanaryModelWrapper(self.whisper_model.tokenizer, attack_size=attack_args.attack_size, device=device, attack_init=attack_init).to(device)
 
 
     def _get_tgt_tkn_id(self):

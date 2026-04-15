@@ -1,6 +1,6 @@
 import torch
-from whisper.audio import load_audio
 import string
+from src.tools.tools import load_audio_tensor
 
 def saliency(audio, audio_attack_model, whisper_model, device):
     '''
@@ -31,9 +31,7 @@ def _saliency_calculation(audio, audio_attack_model, whisper_model, device):
     '''
         Forward-backward pass
     '''
-    if isinstance(audio, str):
-        audio = load_audio(audio)
-    audio = torch.from_numpy(audio).to(device)
+    audio = load_audio_tensor(audio, device=device)
     audio.requires_grad = True
     audio.retain_grad()
 

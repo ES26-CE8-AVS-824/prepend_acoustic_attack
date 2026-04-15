@@ -1,6 +1,5 @@
 import torch
 import whisper
-import editdistance
 from whisper.tokenizer import get_tokenizer
 
 

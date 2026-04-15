@@ -1,5 +1,6 @@
-from .speech import _librispeech, _tedlium, _mgb, _artie
-from .fleurs import _fleurs
+from src.data.speech import _librispeech, _tedlium, _mgb, _artie
+from src.data.fleurs import _fleurs
+from src.data.vctk import _vctk
 from src.tools.tools import get_default_device
 
 
@@ -24,6 +25,10 @@ def load_data(core_args):
             return None, _artie()
         elif data_name == 'librispeech':
             return _librispeech('dev_other'), _librispeech('test_other')
+        elif data_name == 'vctk':
+            if core_args.task == 'translate':
+                raise ValueError("VCTK is only supported for transcribe experiments")
+            return _vctk()
         else:
             raise ValueError(f"Unknown dataset name: {data_name}")
 
@@ -40,6 +45,12 @@ def load_data(core_args):
         # If data_name is a single string or a list with one element
         return load_single_dataset(core_args.data_name[0] if isinstance(core_args.data_name, list) else core_args.data_name)
 
+
+if __name__ == "__main__":
+    # For testing the load_data function
+    core_args = {'data_name': 'vctk'}
+    train_data, test_data = load_data(core_args)
+    print(f"Loaded {len(train_data)} training samples and {len(test_data)} testing samples.")
 
 
 # def load_data(core_args):

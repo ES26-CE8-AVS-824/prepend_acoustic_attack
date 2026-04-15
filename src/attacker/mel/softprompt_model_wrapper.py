@@ -32,6 +32,7 @@ from whisper.utils import (
     optional_int,
     str2bool,
 )
+from src.tools.tools import load_audio_tensor
 
 
 class SoftPromptModelWrapper(nn.Module):
@@ -110,6 +111,7 @@ class SoftPromptModelWrapper(nn.Module):
             decode_options["fp16"] = False
         decode_options["language"] = whisper_model.language
         
+        audio = load_audio_tensor(audio, device=self.device)
         mel = log_mel_spectrogram(audio, whisper_model.model.dims.n_mels, padding=N_SAMPLES).to(self.device)
         # Modify content frames to account for softprompt vectors
         if do_mel_attack:

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=prepend_attack_train
-#SBATCH --output=logs/prepend_attack_train_%j.out
-#SBATCH --error=logs/prepend_attack_train_%j.err
+#SBATCH --job-name=test
+#SBATCH --output=test/%j.out
+#SBATCH --error=test/%j.err
 #SBATCH --mem=24G
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
@@ -22,10 +22,9 @@ run_in_prepend_attack_venv() {
     local CMD="$1"
     (
     cd "${PREPEND_ATTACK_DIR}"
-    singularity exec --nv --cleanenv --no-home \
+    singularity exec --nv \
         -B "${PROJECT_ROOT}:${PROJECT_ROOT}" \
         -B "${SINGULARITY_CACHE}:/scratch/singularity" \
-        --env PYTHONNOUSERSITE=1 \
         "${CU130_CONTAINER}" \
         /bin/bash -c "
             set -euo pipefail && \
@@ -38,12 +37,4 @@ run_in_prepend_attack_venv() {
     )
 }
 
-run_in_prepend_attack_venv "python train_attack.py \
-                   --model_name whisper-base \
-                   --data_name vctk \ 
-                   --attack_method audio-raw \
-                   --max_epochs 40 \
-                   --clip_val 0.02 \
-                   --attack_size 10240 \
-                   --save_freq 5 \
-                   --seed 42"
+run_in_prepend_attack_venv "pip list"

@@ -4,10 +4,9 @@ from torch.utils.data import TensorDataset, DataLoader
 import random
 import os
 from tqdm import tqdm
-from whisper.audio import load_audio
 
 from .learn_attack import AudioAttack
-from src.tools.tools import set_seeds, AverageMeter
+from src.tools.tools import set_seeds, AverageMeter, load_audio_tensor
 
 
 
@@ -96,8 +95,7 @@ class AudioAttackHallucinate(AudioAttack):
         
         print('audio loading')
         for d in tqdm(data):
-            audio_np = load_audio(d['audio'])
-            audio_vector = torch.from_numpy(audio_np)
+            audio_vector = load_audio_tensor(d['audio'])
             audio_vectors.append(audio_vector)
             texts.append(d['ref'])
         
