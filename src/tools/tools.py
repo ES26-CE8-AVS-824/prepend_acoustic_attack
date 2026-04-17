@@ -20,9 +20,9 @@ from comet import download_model, load_from_checkpoint
 from whisper.audio import SAMPLE_RATE, load_audio
 
 
-from langdetect import detect, DetectorFactory, detect_langs
-from langdetect.lang_detect_exception import LangDetectException
-DetectorFactory.seed = 0
+# from langdetect import detect, DetectorFactory, detect_langs
+# from langdetect.lang_detect_exception import LangDetectException
+# DetectorFactory.seed = 0
 
 def set_seeds(seed):
     torch.manual_seed(seed)

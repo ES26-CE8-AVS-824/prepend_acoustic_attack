@@ -14,6 +14,7 @@ def load_data(core_args):
                     }
     '''
     def load_single_dataset(data_name):
+        print(f"Loading dataset: {data_name}")
         if data_name == 'fleurs':
             device = get_default_device(core_args.gpu_id)
             return _fleurs(lang=core_args.language, use_pred_for_ref=core_args.use_pred_for_ref, model_name=core_args.model_name[0], device=device)
@@ -29,8 +30,9 @@ def load_data(core_args):
             if core_args.task == 'translate':
                 raise ValueError("VCTK is only supported for transcribe experiments")
             return _vctk()
-        else:
-            raise ValueError(f"Unknown dataset name: {data_name}")
+        else: return None, None
+
+       
 
     if isinstance(core_args.data_name, list) and len(core_args.data_name) > 1:
         train_data_combined, test_data_combined = [], []
