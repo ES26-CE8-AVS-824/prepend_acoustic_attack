@@ -1,19 +1,19 @@
 #!/bin/bash
 
-#SBATCH --job-name=prepend_attack_train
+#SBATCH --job-name=mute_trn
 #SBATCH --output=logs/prepend_attack_train_%j.out
 #SBATCH --error=logs/prepend_attack_train_%j.err
 #SBATCH --mem=24G
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
-#SBATCH --time=02:00:00
+#SBATCH --time=12:00:00
 
 set -euo pipefail
 
 PROJECT_ROOT="/ceph/project/es26-ce8-avs-824/whispers-in-the-storm"
 SINGULARITY_CACHE="$HOME/.singularity"
 PREPEND_ATTACK_DIR="$PROJECT_ROOT/extern/prepend_acoustic_attack"
-CU130_CONTAINER="$PROJECT_ROOT/sgmse_env_cu130_v3.sif"
+CU130_CONTAINER="$PROJECT_ROOT/sgmse_env_cu130_v4.sif"
 DATA_ROOT="$PROJECT_ROOT/data"
 
 mkdir -p "$PROJECT_ROOT/logs"
@@ -32,14 +32,16 @@ run_in_prepend_attack_venv() {
             export TMPDIR=/scratch/singularity/tmp && \
             export TRITON_LIBCUDA_PATH=/.singularity.d/libs && \
             export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True && \
-            export HF_DATASETS_CACHE=${DATA_ROOT}/hf_cache && \
+            export HF_HOME=${DATA_ROOT}/hf_cache && \
+            export XDG_CACHE_HOME=${DATA_ROOT}/hf_cache && \
+            export MPLCONFIGDIR=/scratch/singularity/tmp && \
             ${CMD}
         "
     )
 }
 
 run_in_prepend_attack_venv "python train_attack.py \
-                   --model_name whisper-base \
+                   --model_name whisper-tiny \
                    --data_name vctk \ 
                    --attack_method audio-raw \
                    --max_epochs 40 \
