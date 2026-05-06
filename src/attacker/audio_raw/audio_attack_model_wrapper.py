@@ -14,8 +14,8 @@ class AudioAttackModelWrapper(nn.Module):
         self.device = device
         self.multiple_model_attack = False
 
-        self.sot_ids = self.tokenizer.sot_sequence_including_notimestamps
-        self.len_sot_ids = len(torch.tensor(self.sot_ids))
+        # self.sot_ids = self.tokenizer.sot_sequence_including_notimestamps
+        # self.len_sot_ids = len(torch.tensor(self.sot_ids))
 
         if attack_init == 'random':
             self.audio_attack_segment = nn.Parameter(torch.rand(attack_size))

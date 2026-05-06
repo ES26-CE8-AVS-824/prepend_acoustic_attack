@@ -36,6 +36,7 @@ if __name__ == '__main__':
                         help="Whisper model name (tiny/base/small/medium/large[.en])")
     parser.add_argument("--sampling-frequency", "-f", type=int, default=16000, help="Sampling frequency for processing")
     parser.add_argument("--target_frequency", "-t", type=int, default=16000, help="Target frequency for resampling")
+    parser.add_argument("--prepend_segment_path", "-p", type=str, required=True, help="Prepend segment full path")
     parser.add_argument("--original-save-dir", "-o", type=str, required=True,
                         help="Directory to save original audio segments")
     parser.add_argument("--adv-save-dir", "-s", type=str, required=True,
@@ -63,7 +64,7 @@ if __name__ == '__main__':
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     options = whisper.DecodingOptions(language="en", task="transcribe")
 
-    muted_audio = np.load(f"audio_attack_segments/{args.whisper_model}.np.npy")
+    muted_audio = np.load(args.prepend_segment_path)
     audio_attack_segment = torch.from_numpy(muted_audio).to(DEVICE)
     model = whisper.load_model(args.whisper_model).to(DEVICE)
 
