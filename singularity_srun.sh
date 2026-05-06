@@ -1,7 +1,7 @@
 set -euo pipefail
 
 #################################################################
-PROJECT_ROOT="/home/peppermint/Aalborg/CE8/whispers-in-the-storm"
+PROJECT_ROOT="/ceph/project/es26-ce8-avs-824/whispers-in-the-storm"
 #################################################################
 
 DATA_ROOT="$PROJECT_ROOT/data"
