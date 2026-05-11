@@ -9,3 +9,4 @@ experiments
 temp.ipynb
 *.wav
 prepend_attack_venv/*
+logs/*
