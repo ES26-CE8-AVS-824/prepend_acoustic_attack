@@ -27,8 +27,6 @@ def load_data(core_args):
         elif data_name == 'librispeech':
             return _librispeech('dev_other'), _librispeech('test_other')
         elif data_name == 'vctk':
-            if core_args.task == 'translate':
-                raise ValueError("VCTK is only supported for transcribe experiments")
             return _vctk()
         else: return None, None
 
