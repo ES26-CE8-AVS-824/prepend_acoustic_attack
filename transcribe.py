@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 
 import soundfile as sf
 import whisper
+from whisper.normalizers import EnglishTextNormalizer
 
 from load_multi_audio_files import pad_or_trim
 
@@ -78,6 +79,7 @@ if __name__ == '__main__':
 
                 for path, res in zip(paths_batch, results):
                     if path not in transcriptions:
+                        res["text"] = EnglishTextNormalizer()(res["text"])
                         transcriptions[os.path.basename(path)] = res["text"]
 
                 del results
@@ -87,8 +89,6 @@ if __name__ == '__main__':
 
             except Exception as e:
                 print(f"Failed to process {paths_batch}: {e}", file=sys.stderr)
-
-
 
     # Save all transcriptions to JSON
     json_path = os.path.join(save_dir, f"transcriptions_{args.whisper_model}.json")
