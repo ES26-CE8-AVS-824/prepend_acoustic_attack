@@ -27,6 +27,8 @@ if __name__ == "__main__":
     set_seeds(core_args.seed)
     base_path = base_path_creator(core_args)
     attack_base_path = attack_base_path_creator_train(attack_args, base_path)
+    cache_dir = attack_base_path
+    os.makedirs(cache_dir, exist_ok=True)
 
     # Save the command run
     if not os.path.isdir('CMDs'):
@@ -48,5 +50,5 @@ if __name__ == "__main__":
     model = load_model(core_args, device=device)
 
     attacker = select_train_attacker(attack_args, core_args, model, device=device)
-    attacker.train_process(data, attack_base_path)
+    attacker.train_process(data, cache_dir)
     
