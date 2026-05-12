@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import random
 import os
+import hashlib
+import json
 from tqdm import tqdm
 
 from .base import AudioBaseAttacker
@@ -69,39 +71,128 @@ class AudioAttack(AudioBaseAttacker):
 
 
     @staticmethod
-    def _prep_dl(data, bs=16, shuffle=False):
-        '''
-        Create batch of audio vectors
-        '''
+    def _pad_sequence(tensors, padding_value=0):
+        max_length = max(len(tensor) for tensor in tensors)
+        padded_tensors = []
+        for tensor in tensors:
+            padded_tensor = torch.nn.functional.pad(tensor, (0, max_length - len(tensor)), value=padding_value)
+            padded_tensors.append(padded_tensor)
+        return padded_tensors
+
+    @staticmethod
+    def _load_audio_vectors_cached(data, cache_dir):
+        cache_path = AudioAttack._get_audio_cache_path(data, cache_dir)
+        if os.path.isfile(cache_path):
+            print(f'Loading cached audio tensor from {cache_path}')
+            return torch.load(cache_path, map_location='cpu')
 
         print('Loading and batching audio files')
         audio_vectors = []
         for d in tqdm(data):
             audio_vector = load_audio_tensor(d['audio'])
             audio_vectors.append(audio_vector)
-        
-        def pad_sequence(tensors, padding_value=0):
-            max_length = max(len(tensor) for tensor in tensors)
-            padded_tensors = []
-            for tensor in tensors:
-                padded_tensor = torch.nn.functional.pad(tensor, (0, max_length - len(tensor)), value=padding_value)
-                padded_tensors.append(padded_tensor)
-            return padded_tensors
 
-        audio_vectors = pad_sequence(audio_vectors)
+        audio_vectors = AudioAttack._pad_sequence(audio_vectors)
         audio_vectors = torch.stack(audio_vectors, dim=0)
+        torch.save(audio_vectors, cache_path)
+        print(f'Saved audio tensor cache to {cache_path}')
+        return audio_vectors
+
+    @staticmethod
+    def _serialize_audio_cache_key(audio):
+        if isinstance(audio, str):
+            path = os.path.abspath(audio)
+            if os.path.isfile(path):
+                stat = os.stat(path)
+                return {
+                    'type': 'path',
+                    'path': path,
+                    'mtime_ns': stat.st_mtime_ns,
+                    'size': stat.st_size,
+                }
+            return {'type': 'path', 'path': path, 'missing': True}
+
+        if isinstance(audio, dict):
+            if audio.get('path'):
+                return AudioAttack._serialize_audio_cache_key(audio['path'])
+
+            serializable_audio = {}
+            for key, value in audio.items():
+                if isinstance(value, (str, int, float, bool)) or value is None:
+                    serializable_audio[key] = value
+                elif isinstance(value, bytes):
+                    serializable_audio[key] = {
+                        'bytes_len': len(value),
+                        'sha256': hashlib.sha256(value).hexdigest(),
+                    }
+                elif torch.is_tensor(value):
+                    tensor_bytes = value.detach().cpu().contiguous().numpy().tobytes()
+                    serializable_audio[key] = {
+                        'shape': tuple(value.shape),
+                        'dtype': str(value.dtype),
+                        'sha256': hashlib.sha256(tensor_bytes).hexdigest(),
+                    }
+                elif hasattr(value, 'shape'):
+                    array_bytes = value.tobytes()
+                    serializable_audio[key] = {
+                        'shape': tuple(value.shape),
+                        'dtype': str(getattr(value, 'dtype', type(value))),
+                        'sha256': hashlib.sha256(array_bytes).hexdigest(),
+                    }
+                elif isinstance(value, (list, tuple)):
+                    sequence_repr = json.dumps(list(value), default=str).encode('utf-8')
+                    serializable_audio[key] = {
+                        'len': len(value),
+                        'sha256': hashlib.sha256(sequence_repr).hexdigest(),
+                    }
+                else:
+                    serializable_audio[key] = str(type(value))
+            return {'type': 'dict', 'value': serializable_audio}
+
+        if torch.is_tensor(audio):
+            tensor_bytes = audio.detach().cpu().contiguous().numpy().tobytes()
+            return {
+                'type': 'tensor',
+                'shape': tuple(audio.shape),
+                'dtype': str(audio.dtype),
+                'sha256': hashlib.sha256(tensor_bytes).hexdigest(),
+            }
+
+        return {'type': type(audio).__name__, 'repr': str(audio)}
+
+    @staticmethod
+    def _get_audio_cache_path(data, cache_dir):
+        cache_root = os.path.join(cache_dir, 'prepend_attack_cache')
+        os.makedirs(cache_root, exist_ok=True)
+
+        cache_descriptor = [
+            AudioAttack._serialize_audio_cache_key(d['audio'])
+            for d in data
+        ]
+        cache_key = hashlib.sha256(
+            json.dumps(cache_descriptor, sort_keys=True).encode('utf-8')
+        ).hexdigest()
+        return os.path.join(cache_root, f'audio_vectors_{cache_key}.pt')
+
+    @staticmethod
+    def _prep_dl(data, cache_dir, bs=16, shuffle=False):
+        '''
+        Create batch of audio vectors
+        '''
+
+        audio_vectors = AudioAttack._load_audio_vectors_cached(data, cache_dir)
         ds = TensorDataset(audio_vectors)
-        dl = DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=8)
-        return dl
+        return DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=16)
 
 
     def train_process(self, train_data, cache_dir):
 
-        fpath = f'{cache_dir}/prepend_attack_models'
-        if not os.path.isdir(fpath):
-            os.mkdir(fpath)
+        os.makedirs(cache_dir, exist_ok=True)
 
-        train_dl = self._prep_dl(train_data, bs=self.attack_args.bs, shuffle=True)
+        fpath = f'{cache_dir}/prepend_attack_models'
+        os.makedirs(fpath, exist_ok=True)
+
+        train_dl = AudioAttack._prep_dl(data=train_data, cache_dir=cache_dir, bs=self.attack_args.bs, shuffle=True)
 
         for epoch in range(self.attack_args.max_epochs):
             # train for one epoch
@@ -110,20 +201,6 @@ class AudioAttack(AudioBaseAttacker):
 
             if epoch==self.attack_args.max_epochs-1 or (epoch+1)%self.attack_args.save_freq==0:
                 # save model at this epoch
-                if not os.path.isdir(f'{fpath}/epoch{epoch+1}'):
-                    os.mkdir(f'{fpath}/epoch{epoch+1}')
+                os.makedirs(f'{fpath}/epoch{epoch+1}', exist_ok=True)
                 state = self.audio_attack_model.state_dict()
                 torch.save(state, f'{fpath}/epoch{epoch+1}/model.th')
-
-
-
-
-
-
-
-
-
-
-            
-
-

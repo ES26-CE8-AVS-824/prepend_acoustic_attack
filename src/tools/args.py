@@ -33,6 +33,14 @@ def core_args():
         nargs="+",
         help="dataset for exps; supported names include librispeech, fleurs, tedlium, mgb, artie, vctk. VCTK uses CSTR-Edinburgh/vctk and derives a deterministic speaker-disjoint test split from the upstream train split. It is transcribe-only.",
     )
+
+    commandLineParser.add_argument(
+        "--train_limit", type=int, default=None, help="Limit the number of training samples"
+    )
+    commandLineParser.add_argument(
+        "--test_limit", type=int, default=None, help="Limit the number of testing samples"
+    )
+
     commandLineParser.add_argument(
         "--use_pred_for_ref", action="store_true", help="Implemented for Fleurs dataset. Use model predictions for the reference transcriptions."
     )

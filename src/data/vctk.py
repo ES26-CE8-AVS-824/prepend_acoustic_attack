@@ -70,9 +70,10 @@ def load_vctk_hf_split(split_name: str, limit: int | None = None):
     return subset
 
 
-def _vctk(split_train=UPSTREAM_TRAIN_SPLIT, split_test=REPO_TEST_SPLIT):
-    train_data = load_vctk_hf_split(split_train)
-    test_data = load_vctk_hf_split(split_test)
+def _vctk(split_train=UPSTREAM_TRAIN_SPLIT, split_test=REPO_TEST_SPLIT,
+          train_limit: int | None = None, test_limit: int | None = None) -> Audio:
+    train_data = load_vctk_hf_split(split_train, train_limit)
+    test_data = load_vctk_hf_split(split_test, test_limit)
 
     train_data = train_data.cast_column("audio", Audio(decode=False))
     test_data = test_data.cast_column("audio", Audio(decode=False))
