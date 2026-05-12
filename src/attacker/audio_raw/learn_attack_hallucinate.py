@@ -84,24 +84,23 @@ class AudioAttackHallucinate(AudioAttack):
             padded_tensors.append(padded_tensor)
         return padded_tensors
 
-    def _prep_dl(self, data, bs=4, shuffle=False):
+    def _prep_dl(self, data, cache_dir, bs=4, shuffle=False):
         '''
         Create batches of audio vectors, token IDs, and text lengths
         '''
-        
+
         print('Loading and batching audio files and ref token IDs')
-        audio_vectors = []
+        audio_vectors = AudioAttack._load_audio_vectors_cached(data, cache_dir)
         texts = []
-        
+
         print('audio loading')
         for d in tqdm(data):
-            audio_vector = load_audio_tensor(d['audio'])
-            audio_vectors.append(audio_vector)
             texts.append(d['ref'])
-        
-        audio_vectors = self._pad_sequence(audio_vectors)
-        audio_vectors = torch.stack(audio_vectors, dim=0)
-        
+
+        # Ensure audio vectors are a single tensor for TensorDataset
+        if isinstance(audio_vectors, list):
+            audio_vectors = torch.stack(audio_vectors, dim=0)
+
         # Tokenize texts manually, ensuring padding and truncation
         tokenized_texts = []
         text_lengths = []
@@ -118,22 +117,25 @@ class AudioAttackHallucinate(AudioAttack):
 
         text_token_ids = torch.stack(tokenized_texts, dim=0)
         text_lengths = torch.tensor(text_lengths)
-        
+
         ds = TensorDataset(audio_vectors, text_token_ids, text_lengths)
         dl = DataLoader(ds, batch_size=bs, shuffle=shuffle)
-        
+
         return dl
 
+    def train_process(self, train_data, cache_dir):
+        os.makedirs(cache_dir, exist_ok=True)
 
+        fpath = f'{cache_dir}/prepend_attack_models'
+        os.makedirs(fpath, exist_ok=True)
 
+        train_dl = self._prep_dl(data=train_data, cache_dir=cache_dir, bs=self.attack_args.bs, shuffle=True)
 
+        for epoch in range(self.attack_args.max_epochs):
+            print('current lr {:.5e}'.format(self.optimizer.param_groups[0]['lr']))
+            self.train_step(train_dl, epoch)
 
-
-
-
-
-
-
-            
-
-
+            if epoch==self.attack_args.max_epochs-1 or (epoch+1)%self.attack_args.save_freq==0:
+                os.makedirs(f'{fpath}/epoch{epoch+1}', exist_ok=True)
+                state = self.audio_attack_model.state_dict()
+                torch.save(state, f'{fpath}/epoch{epoch+1}/model.th')

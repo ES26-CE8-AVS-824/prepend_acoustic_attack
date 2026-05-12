@@ -80,6 +80,25 @@ class AudioAttack(AudioBaseAttacker):
         return padded_tensors
 
     @staticmethod
+    def _load_audio_vectors_cached(data, cache_dir):
+        cache_path = AudioAttack._get_audio_cache_path(data, cache_dir)
+        if os.path.isfile(cache_path):
+            print(f'Loading cached audio tensor from {cache_path}')
+            return torch.load(cache_path, map_location='cpu')
+
+        print('Loading and batching audio files')
+        audio_vectors = []
+        for d in tqdm(data):
+            audio_vector = load_audio_tensor(d['audio'])
+            audio_vectors.append(audio_vector)
+
+        audio_vectors = AudioAttack._pad_sequence(audio_vectors)
+        audio_vectors = torch.stack(audio_vectors, dim=0)
+        torch.save(audio_vectors, cache_path)
+        print(f'Saved audio tensor cache to {cache_path}')
+        return audio_vectors
+
+    @staticmethod
     def _serialize_audio_cache_key(audio):
         if isinstance(audio, str):
             path = os.path.abspath(audio)
@@ -161,26 +180,9 @@ class AudioAttack(AudioBaseAttacker):
         Create batch of audio vectors
         '''
 
-        cache_path = AudioAttack._get_audio_cache_path(data, cache_dir)
-        if os.path.isfile(cache_path):
-            print(f'Loading cached audio tensor from {cache_path}')
-            audio_vectors = torch.load(cache_path, map_location='cpu')
-            ds = TensorDataset(audio_vectors)
-            return DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=16)
-
-        print('Loading and batching audio files')
-        audio_vectors = []
-        for d in tqdm(data):
-            audio_vector = load_audio_tensor(d['audio'])
-            audio_vectors.append(audio_vector)
-
-        audio_vectors = AudioAttack._pad_sequence(audio_vectors)
-        audio_vectors = torch.stack(audio_vectors, dim=0)
-        torch.save(audio_vectors, cache_path)
-        print(f'Saved audio tensor cache to {cache_path}')
+        audio_vectors = AudioAttack._load_audio_vectors_cached(data, cache_dir)
         ds = TensorDataset(audio_vectors)
-        dl = DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=16)
-        return dl
+        return DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=16)
 
 
     def train_process(self, train_data, cache_dir):
@@ -190,7 +192,7 @@ class AudioAttack(AudioBaseAttacker):
         fpath = f'{cache_dir}/prepend_attack_models'
         os.makedirs(fpath, exist_ok=True)
 
-        train_dl = self._prep_dl(data=train_data, cache_dir=cache_dir, bs=self.attack_args.bs, shuffle=True)
+        train_dl = AudioAttack._prep_dl(data=train_data, cache_dir=cache_dir, bs=self.attack_args.bs, shuffle=True)
 
         for epoch in range(self.attack_args.max_epochs):
             # train for one epoch
@@ -202,16 +204,3 @@ class AudioAttack(AudioBaseAttacker):
                 os.makedirs(f'{fpath}/epoch{epoch+1}', exist_ok=True)
                 state = self.audio_attack_model.state_dict()
                 torch.save(state, f'{fpath}/epoch{epoch+1}/model.th')
-
-
-
-
-
-
-
-
-
-
-            
-
-
