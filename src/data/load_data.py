@@ -27,7 +27,7 @@ def load_data(core_args):
         elif data_name == 'librispeech':
             return _librispeech('dev_other'), _librispeech('test_other')
         elif data_name == 'vctk':
-            return _vctk()
+            return _vctk(train_limit=core_args.train_limit, test_limit=core_args.test_limit)
         else: return None, None
 
        
