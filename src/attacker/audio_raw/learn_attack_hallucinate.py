@@ -51,12 +51,15 @@ class AudioAttackHallucinate(AudioAttack):
 
         for i, (audio, decoder_input, seq_len) in enumerate(train_loader):
             audio = audio.to(self.device)
+            audio_size = audio.size(0)
             decoder_input = decoder_input.to(self.device)
             seq_len = seq_len.to(self.device)
 
             # Forward pass
             logits = self.audio_attack_model(audio, self.whisper_model, decoder_input=decoder_input)
+            del audio, decoder_input
             loss = self._loss(logits, seq_len + self.audio_attack_model.len_sot_ids)
+            del logits, seq_len
 
             # Backward pass and update
             self.optimizer.zero_grad()
@@ -71,7 +74,8 @@ class AudioAttackHallucinate(AudioAttack):
                 self.audio_attack_model.audio_attack_segment.clamp_(min=-1*max_val, max=max_val)
         
             # record loss
-            losses.update(loss.item(), audio.size(0))
+            losses.update(loss.item(), audio_size)
+            del loss
             if i % print_freq == 0:
                 print(f'Epoch: [{epoch}][{i}/{len(train_loader)}]\tLoss {losses.val:.5f} ({losses.avg:.5f})')        
 
@@ -123,10 +127,12 @@ class AudioAttackHallucinate(AudioAttack):
 
         return dl
 
-    def train_process(self, train_data, cache_dir):
-        os.makedirs(cache_dir, exist_ok=True)
+    def train_process(self, train_data, attack_base_path, cache_dir):
+        os.makedirs(attack_base_path, exist_ok=True)
+        if cache_dir is not None:
+            os.makedirs(cache_dir, exist_ok=True)
 
-        fpath = f'{cache_dir}/prepend_attack_models'
+        fpath = f'{attack_base_path}/prepend_attack_models'
         os.makedirs(fpath, exist_ok=True)
 
         train_dl = self._prep_dl(data=train_data, cache_dir=cache_dir, bs=self.attack_args.bs, shuffle=True)

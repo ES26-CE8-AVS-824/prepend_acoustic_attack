@@ -48,6 +48,9 @@ def core_args():
     commandLineParser.add_argument(
         "--force_cpu", action="store_true", help="force cpu use"
     )
+    commandLineParser.add_argument(
+        "--cache", action="store_true", help="Cache audio tensors to disk to avoid reloading on repeated runs"
+    )
     return commandLineParser.parse_known_args()
 
 

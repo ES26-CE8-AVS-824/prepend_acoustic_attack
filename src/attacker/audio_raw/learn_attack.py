@@ -46,10 +46,13 @@ class AudioAttack(AudioBaseAttacker):
 
         for i, (audio) in enumerate(train_loader):
             audio = audio[0].to(self.device)
+            n = audio.size(0)
 
             # Forward pass
             logits = self.audio_attack_model(audio, self.whisper_model)[:,-1,:].squeeze(dim=1)
+            del audio
             loss = self._loss(logits)
+            del logits
 
             # Backward pass and update
             self.optimizer.zero_grad()
@@ -65,7 +68,8 @@ class AudioAttack(AudioBaseAttacker):
                 self.audio_attack_model.audio_attack_segment.clamp_(min=-1*max_val, max=max_val)
         
             # record loss
-            losses.update(loss.item(), audio.size(0))
+            losses.update(loss.item(), n)
+            del loss
             if i % print_freq == 0:
                 print(f'Epoch: [{epoch}][{i}/{len(train_loader)}]\tLoss {losses.val:.5f} ({losses.avg:.5f})')        
 
@@ -81,21 +85,25 @@ class AudioAttack(AudioBaseAttacker):
 
     @staticmethod
     def _load_audio_vectors_cached(data, cache_dir):
-        cache_path = AudioAttack._get_audio_cache_path(data, cache_dir)
-        if os.path.isfile(cache_path):
-            print(f'Loading cached audio tensor from {cache_path}')
-            return torch.load(cache_path, map_location='cpu')
+        if cache_dir is not None:
+            cache_path = AudioAttack._get_audio_cache_path(data, cache_dir)
+            if os.path.isfile(cache_path):
+                print(f'Loading cached audio tensor from {cache_path}')
+                return torch.load(cache_path, map_location='cpu')
 
         print('Loading and batching audio files')
-        audio_vectors = []
+        raw_vectors = []
         for d in tqdm(data):
-            audio_vector = load_audio_tensor(d['audio'])
-            audio_vectors.append(audio_vector)
+            raw_vectors.append(load_audio_tensor(d['audio']))
 
-        audio_vectors = AudioAttack._pad_sequence(audio_vectors)
-        audio_vectors = torch.stack(audio_vectors, dim=0)
-        torch.save(audio_vectors, cache_path)
-        print(f'Saved audio tensor cache to {cache_path}')
+        padded = AudioAttack._pad_sequence(raw_vectors)
+        del raw_vectors
+        audio_vectors = torch.stack(padded, dim=0)
+        del padded
+
+        if cache_dir is not None:
+            torch.save(audio_vectors, cache_path)
+            print(f'Saved audio tensor cache to {cache_path}')
         return audio_vectors
 
     @staticmethod
@@ -162,8 +170,7 @@ class AudioAttack(AudioBaseAttacker):
 
     @staticmethod
     def _get_audio_cache_path(data, cache_dir):
-        cache_root = os.path.join(cache_dir, 'prepend_attack_cache')
-        os.makedirs(cache_root, exist_ok=True)
+        os.makedirs(cache_dir, exist_ok=True)
 
         cache_descriptor = [
             AudioAttack._serialize_audio_cache_key(d['audio'])
@@ -172,7 +179,7 @@ class AudioAttack(AudioBaseAttacker):
         cache_key = hashlib.sha256(
             json.dumps(cache_descriptor, sort_keys=True).encode('utf-8')
         ).hexdigest()
-        return os.path.join(cache_root, f'audio_vectors_{cache_key}.pt')
+        return os.path.join(cache_dir, f'audio_vectors_{cache_key}.pt')
 
     @staticmethod
     def _prep_dl(data, cache_dir, bs=16, shuffle=False):
@@ -185,11 +192,13 @@ class AudioAttack(AudioBaseAttacker):
         return DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=16)
 
 
-    def train_process(self, train_data, cache_dir):
+    def train_process(self, train_data, attack_base_path, cache_dir):
 
-        os.makedirs(cache_dir, exist_ok=True)
+        os.makedirs(attack_base_path, exist_ok=True)
+        if cache_dir is not None:
+            os.makedirs(cache_dir, exist_ok=True)
 
-        fpath = f'{cache_dir}/prepend_attack_models'
+        fpath = f'{attack_base_path}/prepend_attack_models'
         os.makedirs(fpath, exist_ok=True)
 
         train_dl = AudioAttack._prep_dl(data=train_data, cache_dir=cache_dir, bs=self.attack_args.bs, shuffle=True)
