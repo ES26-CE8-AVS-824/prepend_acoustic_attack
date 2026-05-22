@@ -14,6 +14,7 @@ def get_args():
     commandLineParser = argparse.ArgumentParser(allow_abbrev=False)
     commandLineParser.add_argument('--attack_model_path', type=str, default='', help='Full path to attack model')
     commandLineParser.add_argument('--save_path', type=str, default='', help='Full path for where to save numpy array')
+    commandLineParser.add_argument('--attack_size', type=int, default=5120, help='Length of attack segment')
 
     return commandLineParser.parse_known_args()
 
@@ -29,7 +30,7 @@ if __name__ == "__main__":
 
     # extract the audio attack vectors from pytorch and save as numpy array
 
-    attack_model = AudioAttackModelWrapper(None, attack_size=5120)
+    attack_model = AudioAttackModelWrapper(None, attack_size=args.attack_size)
     attack_model.load_state_dict(torch.load(f'{args.attack_model_path}'))
     audio = attack_model.audio_attack_segment.cpu().detach().numpy()
     np.save(args.save_path, audio)
