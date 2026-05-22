@@ -189,7 +189,7 @@ class AudioAttack(AudioBaseAttacker):
 
         audio_vectors = AudioAttack._load_audio_vectors_cached(data, cache_dir)
         ds = TensorDataset(audio_vectors)
-        return DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=16)
+        return DataLoader(ds, batch_size=bs, shuffle=shuffle, num_workers=4)
 
 
     def train_process(self, train_data, attack_base_path, cache_dir):
