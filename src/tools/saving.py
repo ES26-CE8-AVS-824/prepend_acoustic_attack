@@ -51,6 +51,10 @@ def prepend_attack_cache_path_creator(core_args, attack_args, path='.', create=T
     path = next_dir(path, 'experiments', create=create)
     path = next_dir(path, '_'.join(core_args.data_name), create=create)
     path = next_dir(path, 'prepend_attack_cache', create=create)
+    if core_args.train_limit:
+        path = next_dir(path, f'train_num_limit_{core_args.train_limit}', create=create)
+    else:
+        path = next_dir(path, 'train_num_full', create=create)
     if core_args.seed != 1:
         path = next_dir(path, f'seed_{core_args.seed}', create=create)
     path = next_dir(path, attack_args.attack_method, create=create)
