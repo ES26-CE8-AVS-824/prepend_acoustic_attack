@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 import datasets as ds
 import soundfile as sf
 import whisper
+from datasets import Audio
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -62,7 +63,7 @@ if __name__ == '__main__':
     SPLIT = args.split if args.split else "test"
     split_str = f"{SPLIT}[:{args.limit}]" if args.limit is not None else SPLIT
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    options = whisper.DecodingOptions(language="en", task="transcribe")
+    options = whisper.DecodingOptions(language="fr" if "fleurs" in args.dataset else "en", task="transcribe")
 
     muted_audio = np.load(args.prepend_segment_path)
     audio_attack_segment = torch.from_numpy(muted_audio).to(DEVICE)
@@ -70,7 +71,7 @@ if __name__ == '__main__':
 
     # Config name is dataset-specific
     if "fleurs" in args.dataset:
-        config = "en_us" if not args.whisper_model.endswith(".en") else "default"
+        config = "fr_fr" if not args.whisper_model.endswith(".en") else "default"
     else:
         config = None  # VoiceBank-DEMAND-16k needs no config
 
@@ -90,9 +91,12 @@ if __name__ == '__main__':
     elif is_vctk_dataset(args.dataset):
         dataset = BadayvedatVCTKAudioDataset(hf_dataset)
     else:  # google/fleurs
+        hf_dataset = hf_dataset.cast_column("audio", Audio(decode=False))
         dataset = GPUReadyAudioDataset(hf_dataset)
 
-    dataloader = DataLoader(dataset, batch_size=64, num_workers=4, pin_memory=True,
+    dataloader = DataLoader(dataset, batch_size=64, num_workers=4,
+                            pin_memory=torch.cuda.is_available(),
+                            pin_memory_device="cuda" if torch.cuda.is_available() else "",
                             prefetch_factor=4, collate_fn=collate_audio_pinned)
 
     # -------------------------

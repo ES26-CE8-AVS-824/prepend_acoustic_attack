@@ -30,8 +30,16 @@ class GPUReadyAudioDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
-        path = os.path.join(os.path.dirname(item['path']), item['audio']['path'])
-        waveform, sample_rate = torchaudio.load(path)
+        audio_dict = item['audio']
+
+        if audio_dict.get('bytes') is not None:
+            import io
+            waveform, sample_rate = torchaudio.load(io.BytesIO(audio_dict['bytes']))
+        elif audio_dict.get('array') is not None:
+            waveform = torch.from_numpy(np.asarray(audio_dict['array'], dtype=np.float32)).unsqueeze(0)
+            sample_rate = audio_dict.get('sampling_rate', 16000)
+        else:
+            raise ValueError("No usable audio data in item")
         if waveform.shape[0] > 1:  # Stereo → mono
             waveform = waveform.mean(0, keepdim=True)  # [1, T]
         waveform = waveform.squeeze(0)  # [T] 1D strict!

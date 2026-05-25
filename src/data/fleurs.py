@@ -1,9 +1,11 @@
 import os
 import json
-from datasets import load_dataset
+from datasets import load_dataset, Audio
 from src.models.whisper import WhisperModel
 # from src.models.canary import CanaryModel
 from tqdm import tqdm
+
+from src.tools.tools import materialize_audio_path
 
 LANG_MAPPER = {
     'fr': 'fr_fr',
@@ -34,6 +36,8 @@ def _fleurs(lang='fr', use_pred_for_ref=False, model_name=None, device=None):
     else:
         train_data = load_dataset("google/fleurs", f"{LANG_MAPPER[lang]}", split="train")
         test_data = load_dataset("google/fleurs", f"{LANG_MAPPER[lang]}", split="test")
+        train_data = train_data.cast_column("audio", Audio(decode=False))
+        test_data = test_data.cast_column("audio", Audio(decode=False))
         return _prep_samples(train_data, use_pred_for_ref, model_name, lang, "transcribe", "train", device), _prep_samples(test_data, use_pred_for_ref, model_name, lang, "transcribe", "test", device)
 
 def _prep_samples(data, use_pred_for_ref, model_name, lang, task, split, device):
@@ -65,7 +69,8 @@ def _prep_samples(data, use_pred_for_ref, model_name, lang, task, split, device)
         print(f"Generating predictions for the dataset ({task})...")
 
     for sample in tqdm(list(data), desc="Processing samples"):
-        audio_path = '/'.join(sample['path'].split('/')[:-1]) + '/' + sample['audio']['path']
+        #audio_path = '/'.join(sample['path'].split('/')[:-1]) + '/' + sample['audio']['path']
+        audio = sample["audio"]
         cache_file = os.path.join(cache_dir, f"{sample['id']}.json")
 
         if os.path.exists(cache_file):
@@ -74,7 +79,12 @@ def _prep_samples(data, use_pred_for_ref, model_name, lang, task, split, device)
         else:
             ref = sample['transcription']
             if use_pred_for_ref and whisper_model:
-                ref = whisper_model.predict(audio=audio_path)
+                audio_path, is_temp = materialize_audio_path(audio)
+                try:
+                    ref = whisper_model.predict(audio=audio_path)
+                finally:
+                    if is_temp:
+                        os.remove(audio_path)
                 with open(cache_file, 'w') as f:
                     json.dump({'ref': ref}, f)
         
@@ -82,7 +92,7 @@ def _prep_samples(data, use_pred_for_ref, model_name, lang, task, split, device)
             {
                 'id': sample['id'],
                 'ref': ref,
-                'audio': audio_path
+                'audio': audio
             }
         )
     return samples

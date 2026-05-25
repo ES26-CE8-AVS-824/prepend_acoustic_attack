@@ -55,8 +55,9 @@ def load_audio_waveform(audio, target_sample_rate=SAMPLE_RATE):
         return load_audio(audio)
 
     if isinstance(audio, dict):
-        if audio.get("path"):
-            return load_audio(audio["path"])
+        path = audio.get("path")
+        if path and os.path.isfile(path):  # only use path if it actually exists on disk
+            return load_audio(path)
         if audio.get("bytes") is not None:
             waveform, sample_rate = sf.read(io.BytesIO(audio["bytes"]), dtype="float32")
         elif audio.get("array") is not None:
